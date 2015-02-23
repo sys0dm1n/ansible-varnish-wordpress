@@ -1,0 +1,160 @@
+# default backend definition.  Set this to point to your content server.
+backend default {
+    .host = "{{ Apache_backend_IP }}";
+    .port = "80";
+    .connect_timeout = 120s;
+    .first_byte_timeout = 120s;
+    .between_bytes_timeout = 120s;
+}
+
+sub vcl_recv {
+
+# shortcut for DFind requests
+  if (req.url ~ "^/w00tw00t") {
+        error 404 "Not Found";
+  }
+
+# not cacheable by default
+  if (req.http.Authorization || req.http.Https) {
+      return (pass);
+  }
+
+# Dont cache the RSS feed
+  if (req.url ~ "/feed") {
+    return (pass);
+  }
+
+# Compatibility with Apache format log
+  if (req.restarts == 0) {
+    if (req.http.x-forwarded-for) {
+      set req.http.X-Forwarded-For = req.http.X-Forwarded-For + ", " + client.ip;
+    } else {
+        set req.http.X-Forwarded-For = client.ip;
+      }
+  }
+
+  if (req.request != "GET" &&
+    req.request != "HEAD" &&
+    req.request != "PUT" &&
+    req.request != "POST" &&
+    req.request != "TRACE" &&
+    req.request != "OPTIONS" &&
+    req.request != "DELETE" &&
+    req.request != "PURGE") {
+      /* Non-RFC2616 or CONNECT which is weird. */
+      return (pipe);
+    }
+
+# we only deal with GET and HEAD by default
+  if (req.request != "GET" && req.request != "HEAD") {
+      return (pass);
+  }
+
+  if (req.http.Accept-Encoding) {
+#revisit this list
+    if (req.url ~ "\.(gif|jpg|jpeg|swf|flv|mp3|mp4|pdf|ico|png|gz|tgz|bz2)(\?.*|)$") {
+      remove req.http.Accept-Encoding;
+    } elsif (req.http.Accept-Encoding ~ "gzip") {
+      set req.http.Accept-Encoding = "gzip";
+    } elsif (req.http.Accept-Encoding ~ "deflate") {
+      set req.http.Accept-Encoding = "deflate";
+    } else {
+      remove req.http.Accept-Encoding;
+    }
+  }
+
+# Strip out Google Analytics campaign variables. They are only needed
+# by the javascript running on the page
+# utm_source, utm_medium, utm_campaign, gclid
+  if(req.url ~ "(\?|&)(gclid|utm_[a-z]+)=") {
+    set req.url = regsuball(req.url, "(gclid|utm_[a-z]+)=[-_A-z0-9]+&?", "");
+    set req.url = regsub(req.url, "(\?|&)$", "");
+  }
+
+# as soon as we have a NO_CACHE cookie pass request
+  if ((req.http.cookie ~ "NO_CACHE=")) {
+      return (pass);
+  }
+
+# remove double // in urls,
+set req.url = regsuball( req.url, "//", "/" );
+#// remove extra http:// calls at the end of the url
+  if (req.url ~ "^/\?http://") {
+    set req.url = regsub(req.url, "\?http://.*", "");
+  }
+
+# Don't cache sitemap.xml
+  if(req.url ~ "/sitemap.xml"){
+    return (pass);
+  }
+
+  if (req.url ~ "^/[^?]+\.(jpeg|jpg|png|gif|ico|js|css|txt|gz|zip|lzma|bz2|tgz|tbz|html|htm)(\?.*|)$") {
+    unset req.http.cookie;
+    set req.url = regsub(req.url, "\?.*$", "");
+  }
+
+  if (req.http.cookie) {
+    if (req.http.cookie ~ "(wordpress_|wp-settings-)") {
+      return(pass);
+    } else {
+      unset req.http.cookie;
+    }
+  }
+
+  if (req.url ~ "/wp-(login|admin)") {
+    return (pass);
+  }
+
+# Do not cache HTTP authentication and HTTP Cookie
+  if (req.http.Authorization || req.http.Cookie) {
+# Not cacheable by default
+    return (pass);
+  }
+# Cache all others requests
+return (lookup);
+}
+
+sub vcl_fetch {
+  if (req.url ~ "wp-(login|admin)" || req.url ~ "preview=true" || req.url ~ "xmlrpc.php") {
+    return (hit_for_pass);
+  }
+  if ( (!(req.url ~ "(wp-(login|admin)|login)")) || (req.request == "GET") ) {
+    unset beresp.http.set-cookie;
+  }
+
+  if (req.url ~ "\.(jpeg|jpg|png|gif|ico|js|css|txt|gz|zip|lzma|bz2|tgz|tbz|html|htm)(\?.*|)$"){
+    set beresp.ttl = 365d;
+  }
+
+  if (beresp.http.Content-Type ~ "text/html" || beresp.http.Content-Type ~ "text/xml" || beresp.http.Content-Type ~ "text/htm"){
+    set beresp.ttl = 4h;
+  }
+  # Define the default grace period to serve cached content
+  set beresp.grace = 60s;
+
+  return (deliver);
+}
+
+sub vcl_deliver {
+# multi-server webfarm? set a variable here so you can check
+# the headers to see which frontend served the request
+#   set resp.http.X-Server = "server-01";
+   if (obj.hits > 0) {
+     set resp.http.X-Cache = "HIT";
+     set resp.http.X-Cache-Hits = obj.hits;
+   } else {
+     set resp.http.X-Cache = "MISS";
+   }
+
+   # Remove some headers: PHP version
+   unset resp.http.X-Powered-By;
+
+   # Remove some headers: Apache version & OS
+   unset resp.http.Server;
+
+   # Remove some heanders: Varnish
+   unset resp.http.Via;
+   unset resp.http.X-Varnish;
+
+   return (deliver);
+}

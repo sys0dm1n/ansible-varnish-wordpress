@@ -1,0 +1,45 @@
+---
+  - hosts: hostname.com
+    user: username
+    sudo: yes
+
+    vars:
+# Replace 192.168.1.1 by the IP of your webserver hosting Wordpress site
+      Apache_backend_IP: 192.168.1.1
+
+    handlers:
+        - name: Restart Varnish
+          service: name=varnish state=restarted
+
+    tasks:
+        - name: Update APT package cache
+          command: apt-get update
+
+        - name: install python-apt  (Required by ANSIBLE)
+          command: apt-get -y install python-apt python-pycurl apt-transport-https
+
+        - name: Adding GPG key
+          apt_key: url=https://repo.varnish-cache.org/ubuntu/GPG-key.txt
+
+        - name: Adding varnish URL sources.list for Ubuntu-Precise
+          apt_repository: repo='deb http://repo.varnish-cache.org/ubuntu/ precise varnish-3.0' update_cache=yes
+          when: ansible_distribution == 'Ubuntu' and ansible_distribution_release == 'precise'
+
+        - name: Adding varnish URL sources.list for Ubuntu-Lucid
+          apt_repository: repo='deb http://repo.varnish-cache.org/ubuntu/ lucid varnish-3.0' update_cache=yes
+          when: ansible_distribution == 'Ubuntu' and ansible_distribution_release == 'lucid'
+
+        - name: adding URL for Ubuntu-Trusty into the sources.list
+          apt_repository: repo='deb http://repo.varnish-cache.org/ubuntu/ trusty varnish-3.0' update_cache=yes
+          when: ansible_distribution == 'Ubuntu' and ansible_distribution_release == 'trusty'
+
+        - name: Installing Varnish 3.0
+          apt: pkg=varnish state=latest update_cache=yes
+
+        - name: Create /etc/varnish/wordpress.vcl file
+          template: src=wordpress.vcl.j2 dest=/etc/varnish/{{ CMS_TYPE }}.vcl backup=yes owner=root group=root mode=0644
+          notify: Restart Varnish
+
+        - name: Change /etc/default/varnish file
+          template: src=varnish.j2 dest=/etc/default/varnish backup=yes owner=root group=root mode=0644
+          notify: Restart Varnish
