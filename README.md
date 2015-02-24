@@ -1,4 +1,4 @@
-Role Name
+Role
 ========
 
 This playbook is tested on Ubuntu server (Precise, Lucid and Trusty). It installs Varnish for Wordpress sites
@@ -8,6 +8,7 @@ Requirements
 ------------
 
 You should have your Wordpress site running and your webserver is listening on port 80.
+The operating system on which Varnish will be installed should be installed.
 
 Variables
 --------------
