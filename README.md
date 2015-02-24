@@ -16,8 +16,7 @@ Variables
 
 Example
 -------------------------
-Replace "hostname.com" with the hostname declared in your hostfile
-Replace "username" by the user that is allowed to remote connect via SSH with sudo privileges.
+In the varnish-install.yml file, replace "hostname.com" with the hostname declared in your hostfile and replace "username" by the user that is allowed to remote connect via SSH with sudo privileges.
 
 
 $ ansible-playbook -kK varnish-install.yml
