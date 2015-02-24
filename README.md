@@ -7,8 +7,9 @@ This playbook is tested on Ubuntu server (Precise, Lucid and Trusty). It install
 Requirements
 ------------
 
+ANSIBLE installed on your machine from which you will be running this.
 You should have your Wordpress site running and your webserver is listening on port 80.
-The operating system on which Varnish will be installed should be installed.
+The operating system on which Varnish will be installed should be ready.
 
 Variables
 --------------
