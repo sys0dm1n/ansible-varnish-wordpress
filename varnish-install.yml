@@ -37,7 +37,7 @@
           apt: pkg=varnish state=latest update_cache=yes
 
         - name: Create /etc/varnish/wordpress.vcl file
-          template: src=wordpress.vcl.j2 dest=/etc/varnish/{{ CMS_TYPE }}.vcl backup=yes owner=root group=root mode=0644
+          template: src=wordpress.vcl.j2 dest=/etc/varnish/wordpress.vcl backup=yes owner=root group=root mode=0644
           notify: Restart Varnish
 
         - name: Change /etc/default/varnish file
